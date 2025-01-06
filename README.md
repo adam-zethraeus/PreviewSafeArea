@@ -3,6 +3,7 @@
 `PreviewSafeArea` visualizes safe areas and makes them resizable at runtime.
 Place your view in it and drag the circular handles in the corners to test your layout.
 
+![animated preview](https://github.com/user-attachments/assets/c68e2636-1d66-455e-bd30-f6ac820686bc)
 
 
 ## Usage:
