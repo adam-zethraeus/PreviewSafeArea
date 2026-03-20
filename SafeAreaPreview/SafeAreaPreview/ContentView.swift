@@ -1,5 +1,9 @@
 import SwiftUI
 import PreviewSafeArea
+import STPluginNeon
+import STTextViewSwiftUI
+import STTextViewSwiftUICommon
+import TreeSitterResource
 
 struct ContentView: View {
     @AppStorage("snippetSource") private var source = SnippetTemplate.defaultSource
@@ -9,6 +13,7 @@ struct ContentView: View {
     @State private var runner = SnippetRunner()
     @State private var workspaceDescriptor: WorkspaceDescriptor?
     @State private var workspaceStatus: WorkspaceStatus = .idle
+    @State private var editorSelection: NSRange?
 
     private let workspaceSupport = WorkspaceSupport()
 
@@ -84,14 +89,26 @@ struct ContentView: View {
                     .disabled(runner.isCompiling || isInspectingWorkspace || workspaceNeedsSchemeSelection)
                 }
 
-                TextEditor(text: $source)
-                    .font(.system(.body, design: .monospaced))
-                    .padding(8)
-                    .background(.background)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10)
-                            .strokeBorder(.quaternary, lineWidth: 1)
-                    }
+                TextView(
+                    text: attributedSource,
+                    selection: $editorSelection,
+                    options: [
+                        .wrapLines,
+                        .highlightSelectedLine,
+                        .showLineNumbers,
+                        .disableSmartQuotes,
+                        .disableTextReplacement,
+                        .disableTextCompletion,
+                    ],
+                    plugins: [
+                        NeonPlugin(theme: .default, language: .swift)
+                    ]
+                )
+                .textViewFont(.monospacedSystemFont(ofSize: 13, weight: .regular))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10)
+                        .strokeBorder(.quaternary, lineWidth: 1)
+                }
 
                 statusPane
             }
@@ -181,10 +198,19 @@ struct ContentView: View {
             switch runner.state {
             case .idle:
                 statusRow(label: "Ready", color: .secondary)
-            case .compiling:
+                Text("Compile a snippet to refresh the preview.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case let .compiling(message):
                 statusRow(label: "Compiling snippet...", color: .orange)
-            case .loaded:
-                statusRow(label: "Loaded", color: .green)
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case let .loaded(message):
+                statusRow(label: "Preview updated", color: .green)
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             case let .failed(message):
                 statusRow(label: "Compile failed", color: .red)
                 ScrollView {
@@ -220,9 +246,21 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(.background)
             }
+            .overlay(alignment: .topTrailing) {
+                previewStatusBadge
+                    .padding(32)
+            }
             .padding(20)
         }
         .background(.background.secondary.opacity(0.15))
+    }
+
+    private var attributedSource: Binding<AttributedString> {
+        Binding {
+            AttributedString(source)
+        } set: { newValue in
+            source = String(newValue.characters)
+        }
     }
 
     private var placeholderView: some View {
@@ -238,6 +276,32 @@ struct ContentView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var previewStatusBadge: some View {
+        switch runner.state {
+        case .idle:
+            EmptyView()
+        case .compiling:
+            Label("Compiling", systemImage: "gearshape.2.fill")
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+        case .loaded:
+            Label("Preview Updated", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+        case .failed:
+            Label("Compile Failed", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+        }
     }
 
     private var workspaceSelection: WorkspaceSelection? {

@@ -214,8 +214,8 @@ actor SnippetCompiler {
 final class SnippetRunner: ObservableObject {
     enum State {
         case idle
-        case compiling
-        case loaded
+        case compiling(String)
+        case loaded(String)
         case failed(String)
 
         var id: String {
@@ -246,15 +246,37 @@ final class SnippetRunner: ObservableObject {
     private let compiler = SnippetCompiler()
 
     func compile(source: String, workspace: WorkspaceSelection?) async {
-        state = .compiling
+        loadedSnippet = nil
+        state = .compiling("Building a fresh runtime bundle for the current snippet.")
 
         do {
             let snippet = try await compiler.compile(source: source, workspace: workspace)
             loadedSnippet = snippet
-            state = .loaded
+            state = .loaded(successMessage(for: workspace))
         } catch {
             loadedSnippet = nil
             state = .failed(error.localizedDescription)
         }
+    }
+
+    private func successMessage(for workspace: WorkspaceSelection?) -> String {
+        if let workspace {
+            switch workspace.descriptor.kind {
+            case .swiftPackage:
+                if workspace.descriptor.importableModules.isEmpty {
+                    return "Snippet compiled against the selected Swift package."
+                } else {
+                    return "Snippet compiled against modules from \(workspace.descriptor.displayName)."
+                }
+            case .xcodeProject, .xcodeWorkspace:
+                if let scheme = workspace.scheme {
+                    return "Snippet compiled against build products from the `\(scheme)` scheme."
+                } else {
+                    return "Snippet compiled against the selected Xcode workspace."
+                }
+            }
+        }
+
+        return "Snippet compiled against the system SDKs."
     }
 }
