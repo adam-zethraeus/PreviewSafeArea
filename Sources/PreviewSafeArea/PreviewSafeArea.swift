@@ -1,6 +1,15 @@
 import SwiftUI
 
 public struct PreviewSafeArea<V: View>: View {
+
+    public init(
+        view: @escaping () -> V
+    ) {
+        self.init { area in
+            view()
+        }
+    }
+
     public init(
         top: CGFloat = 100,
         leading: CGFloat = 44,
