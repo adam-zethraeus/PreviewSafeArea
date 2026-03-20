@@ -80,34 +80,56 @@ struct ContentView: View {
                     }
                     .disabled(runner.isCompiling)
 
-                    Button(runner.isCompiling ? "Compiling..." : "Run Snippet") {
+                    Button {
                         Task {
                             await runner.compile(source: source, workspace: workspaceSelection)
                         }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if runner.isCompiling {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+
+                            Text(runner.isCompiling ? "Compiling..." : "Run Snippet")
+                        }
+                        .frame(minWidth: 124)
                     }
                     .keyboardShortcut(.return, modifiers: [.command])
                     .disabled(runner.isCompiling || isInspectingWorkspace || workspaceNeedsSchemeSelection)
                 }
 
-                TextView(
-                    text: attributedSource,
-                    selection: $editorSelection,
-                    options: [
-                        .wrapLines,
-                        .highlightSelectedLine,
-                        .showLineNumbers,
-                        .disableSmartQuotes,
-                        .disableTextReplacement,
-                        .disableTextCompletion,
-                    ],
-                    plugins: [
-                        NeonPlugin(theme: .default, language: .swift)
-                    ]
-                )
-                .textViewFont(.monospacedSystemFont(ofSize: 13, weight: .regular))
+                ZStack {
+                    TextView(
+                        text: attributedSource,
+                        selection: $editorSelection,
+                        options: [
+                            .wrapLines,
+                            .highlightSelectedLine,
+                            .showLineNumbers,
+                            .disableSmartQuotes,
+                            .disableTextReplacement,
+                            .disableTextCompletion,
+                        ],
+                        plugins: [
+                            NeonPlugin(theme: .default, language: .swift)
+                        ]
+                    )
+                    .textViewFont(.monospacedSystemFont(ofSize: 13, weight: .regular))
+                    .allowsHitTesting(!runner.isCompiling)
+                    .opacity(runner.isCompiling ? 0.45 : 1)
+
+                    if case let .compiling(message) = runner.state {
+                        compilingOverlay(message: message)
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: runner.state.id)
+                .background(.background, in: RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay {
                     RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(.quaternary, lineWidth: 1)
+                        .strokeBorder(runner.isCompiling ? .orange.opacity(0.75) : Color.secondary.opacity(0.25), lineWidth: runner.isCompiling ? 2 : 1)
                 }
 
                 statusPane
@@ -302,6 +324,26 @@ struct ContentView: View {
                 .padding(.vertical, 8)
                 .background(.regularMaterial, in: Capsule())
         }
+    }
+
+    private func compilingOverlay(message: String) -> some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.regular)
+
+            Text("Compiling snippet...")
+                .font(.headline)
+
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 20)
+        .frame(maxWidth: 320)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
     }
 
     private var workspaceSelection: WorkspaceSelection? {
